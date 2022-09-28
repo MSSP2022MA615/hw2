@@ -1,0 +1,308 @@
+---
+title: 'Problem set 2'
+author: "Hao He"
+date: "2022-09-21"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(tidyquant)
+```
+
+Problem 1 Fuel Economy
+Assignment:
+1. Do an analysis of Fuel economy over the 40 year span 1984 through 2023, inclusive. You may want to do an analysis by type of fuel which will ignore hybrids and electric vehicles for most of the years under analysis.
+
+First, Load the data and have an over view of the variables include and their data structure.
+```{r}
+vehicles <-read.csv("vehicles.csv")
+```
+
+The EPA’s 2020 list of the best-fuel-economy vehicles features models that all have a combined mpg of at least 22 mpg, but this standard can vary by the type of vehicles and other factors. So I make a subset of vehicles data include all variables contain the mpg  data and variables reflect the type of fuel, car and drive train. FuelType2 was not included because there is no data available for this variable. Then, I plot the city mpg vs highway mpg to examine if the city or highway condition relates to fuel economy. 
+
+```{r}
+m1 <- vehicles[, c("displ","year", "make", "model", "mpgData", "cylinders","drive","VClass","phevBlended","city08","cityA08", "comb08", "combA08","highway08","highwayA08", "highwayE","fuelType", "fuelType1", "youSaveSpend")]
+
+ggplot(m1) +
+  aes(x = city08, y = highway08, colour = year) +
+  geom_point(shape = "circle", size = 1.5) +
+  geom_smooth(span = 0.75) +
+  scale_color_gradient() +
+  labs(
+    x = "city mpg",
+    y = "highway mpg",
+    title = "Plot 1: City mpg vs Highway mpg",
+    caption = "Source: Fuel Economy Data from U.S EPA"
+  ) +
+  theme_minimal()
+```
+Plot 1 shows a strongly linear relationship and the only insights here is that cars which are fuel efficient on a highway are also fuel efficient in cities in last ten years.
+
+Because highway08 variable has more mpg data available than others, I'll stick to this as a indicator of fuel economy. Now, I have another subset for further exploration.
+```{r}
+m2 <- select(m1,"displ","year", "make", "model", "mpgData", "cylinders","highway08", "drive","VClass","phevBlended","fuelType", "youSaveSpend")
+```
+Now, look at how engine size is related to the fuel economy in terms of mpg.
+```{r}
+ggplot(m2) +
+  aes(x = displ, y = highway08, colour = year) +
+  geom_point(shape = "circle", size = 1.5) +
+  geom_smooth(span = 0.75) +
+  scale_color_viridis_c(option = "magma", direction = 1) +
+  labs(
+    x = "Engine size (L)",
+    y = "Highway mpg (miles per gallon)",
+    title = "Plot 2: Engine size vs Highway mpg",
+    caption = "Source: Fuel Economy Data from U.S EPA"
+  ) +
+  theme_minimal()
+```
+Based on Plot 2, cars with big engines have smaller mpg and use more fuel. This actually contradicts my hypothesis that bigger engines always comes with a higher mpg. 
+It also shows that cars with engine size of 2, 4 and 6 have made some improvements in fuel economy throughout the years because these cars have higher mpg than before. 
+
+Tried faceting to explore the 3-way relationship between fuel economy, engine size, and number of cylinders.
+```{r}
+m2 %>% 
+  ggplot(aes(displ, highway08)) +
+  geom_point() +
+  facet_wrap(~cylinders)+
+  labs(
+    x = "Engine size",
+    y = "Highway mpg",
+    title = "Facet 1: Fuel Economy vs Engine Size vs Cylinders ",
+    caption = "Source: Fuel Economy Data from U.S EPA")
+    
+```
+Upon faceting (see Facet 1), I see that the decreasing relationship between engine size and fuel economy is mostly seen in the 4 cylinder subset. In the other cylinder subsets, I see a flat relationship - as engine displacement increases, fuel economy remains constant.
+
+Next, examine the relationship between fuel type and fuel economy in terms of mpg.
+```{r}
+ggplot(m2) +
+  aes(x = highway08, y = fuelType) +
+  geom_boxplot(fill = "#FF8C00") +
+  labs(
+    x = "Highway mpg",
+    y = "Fuel Types",
+    title = "Plot 3: Fuel economy among different fuel types ",
+    caption = "Source: Fuel Economy Data from U.S EPA"
+  ) +
+  theme_minimal()
+```
+In Plot 3, the electricity has the best fuel economy on average followed by regular gas and electricity and diesel. 
+However, consider the data availability of electric and hybrid cars, I tried facet by years to figure out which year is a good turning point. Although the Facet 2 may not look so tidy, it shows that in 2011 the electricity became the fuel type that has the best fuel economy. (See the subplot in 2011, the bottom right box appears, which represents the electricity fuel type)   
+
+```{r}
+ggplot(m2) +
+  aes(x = highway08, y = fuelType) +
+  geom_boxplot(fill = "#FF8C00") +
+  labs(
+    x = "Highway mpg",
+    y = "Fuel Types",
+    title = "Facet 2: Fuel economy vs fuel types (by years) ",
+    caption = "Source: Fuel Economy Data from U.S EPA"
+  )+
+  theme_minimal() +
+  facet_wrap(vars(year))
+```
+
+2. Now, examine vehicle makers. Which ones have made the most progress? 
+Make at least two plots that address the questions above. 
+As you do your work, you may make many plots. If you include plots in addition to the two that described above, make sure that they address different issues and are not simply intermediate steps you took as you made the to plots you’re submitting for questions 1 and 2.
+
+First, find out the manufacturer has the most models in this dataset. Since vehicle manufacture is excluded here, I use car's make instead.
+```{r}
+# Count makers and sort
+m2c<- m2 %>% count(m2$make, sort = TRUE)
+head(m2c,5)
+```
+So Chevrolet has the most models in this dataset.
+
+Since electricity fuel type is an important factor that affects the fuel economy.
+Now examine which maker has more electric or hybrid cars based on subsection of electric and hybrid car data. 
+```{r}
+m4 <- select(m2,phevBlended, make, year, highway08,fuelType)
+m4$phevBlended <- as.logical(m4$phevBlended)
+hybrid <- m4[m4$phevBlended == TRUE,]
+
+electric <- m4[m4$fuelType == "Electricity",]
+
+# ensure no hybrid cars in electric car subset
+sum(electric$phevBlended)
+```
+
+To get a clearer picture of each maker's progress on producing hybrid cars and electric cars, I used facets.
+```{r}
+ggplot(hybrid) +
+  aes(x = year, y = highway08, colour = fuelType) +
+  geom_point(shape = "circle", size = 1.5) +
+  scale_color_hue(direction = 1) +
+  theme(legend.position = "bottom") +
+  facet_wrap(vars(make))+
+  labs(
+    x = "year",
+    y = "highway mpg",
+    title = "Facet 3: fuel economy in last ten years by hybrid makers",
+    caption = "Source: Fuel Economy Data from U.S EPA",
+    color = "Hybrid Fuel Type"
+  ) 
+```
+In Facet 3, I can see that BMW has committed to better fuel economy by producing more hybrid cars very early. 
+For the subsection of electric cars, I did a similar operation. 
+```{r}
+ggplot(electric) +
+  aes(x = year, y = highway08) +
+  geom_point(shape = "circle", size = 1.5, colour = "#112446") +
+  facet_wrap(vars(make))+
+  labs(
+    x = "year",
+    y = "highway mpg",
+    title = "Facet 4: fuel economy in last ten years by electric makers",
+    caption = "Source: Fuel Economy Data from U.S EPA"
+  ) 
+```
+It is no surprise that Tesla, as the pioneer in electric car market, have the most cars in a good fuel economy. I also noticed that BMW and Chevrolet have made a lot of progresses in improving fuel economy,while both of them actually produce both gas cars and electric cars. Given the information I obtained from all previous plots, I may conclude that BMW and Chevrolet (maker with the most models in my analysis) have made the most progress and care more about fuel economy based on their enhancements in electric cars.
+ 
+ 
+
+
+Problem 2 NASQAD Composite Candlestick
+Assignment: 
+Use ggplot to create a Candlestick chart with the Nasdaq Composite data from September 20, 2021 to September 20, 2022
+```{r}
+# Rember to library(tidyquant)
+NASDAQ <- read.csv("IXIC21-22.csv")
+
+NASDAQ$Date <- as.Date(NASDAQ$Date)
+
+NASDAQ %>% 
+ggplot(aes(x = Date, y = Adj.Close)) +
+  geom_candlestick(aes(open = Open, high = High, low = Low, close = Adj.Close)) +
+  labs(title = "Nasdaq Composite (^IXIC) Candlestick Chart", caption  = "Source: ^IXIC 09/20/2021- 09/20/2022", y = "Closing Price", x = "Date") +
+  theme_tq() +
+  scale_x_date(date_labels = "%b-%Y",
+               limits = as.Date(c("2021-09-20","2022-09-20")),
+               date_breaks = "2 months") +
+  scale_y_continuous(limits = c(10000,17046),
+                     breaks = seq(10000,17000,by = 3000))
+```
+
+
+Problem 3 Rural Capacity Index
+Assignment:
+1.Create a plot that emphasizes rural capacity indexes. Choose your other variables to reflect their contribution to the rural capacity index.
+Rural capacity indexes are affected by multiple factors including education levels, populations, health insurance, and even broadband access. I picked per_insured, county and house_broadband variable to investigate their contribution to the rural capacity index. In plot Problem 3.1, I see that community with higher percent of insured population and more houses having access to internet contributes to higher capacity index.
+
+```{r}
+RCI <- read.csv("ruralCapacityData.csv")
+RCI$County<- gsub("County","",as.character(RCI$County))
+ggplot(RCI) +
+  aes(
+    x = per_insured,
+    y = cap_index,
+    colour = house_broadband
+  ) +
+  geom_point(shape = "circle", size = 1.5) +
+  scale_color_distiller(palette = "RdBu", direction = 1) +
+  labs(
+    x = "population w/ health insurance (%)",
+    y = "capacity index",
+    title = " Problem 3.1: Capacity Index among New Mexico counties",
+    caption = "Source: Headwaters Economics Rural Capacity Index Data in New Mexico",
+    color = "houses w/ internet "
+  )+
+  theme(legend.position = "left")+
+  facet_wrap(vars(County))
+```
+
+
+2. Create a plot that demonstrates the relationship between the number of houses with broadband and the percent of adults, 25 and older, with bachelor degrees. Include information about the rural capacity indexes.
+```{r}
+ggplot(RCI) +
+ aes(x = house_broadband, y = per_over_25_with_bach, colour = County, size = cap_index) +
+ geom_point(shape = "circle") +
+ scale_color_hue(direction = 1) +
+  labs(
+    x = "Total households ",
+    y = "Percent of population (%)",
+    title = "Problem3.2 - Households w/ broadband connection vs pop over 25 w/ bachelors",
+    caption = "Source: Headwaters Economics Rural Capacity Index Data in New Mexico",
+    color = "County"
+  ) +
+ theme(legend.position = "bottom")
+```
+Based on the plot Problem3.2, a county with more house boradband connection does not corresponds to higher percent of population who are older and well-educated in that county.  
+I can see there is an outlier which is the Bernalillo County. I decide to omit Berniliio County to better represent the more numerous and varied small communities.
+
+3. Explore different sizes of communities and their capacity indexes. Create three plots that describe communities with total population < 16000, 16000 < total population < 55000, and total population > 55000. What facets of each population subsection stand out to you, demonstrate them in your plots.
+```{r}
+library(cowplot)
+
+spop_subset <- RCI[RCI$pop_total < 16000,]
+mpop_subset <- RCI[RCI$pop_total > 16000 & RCI$pop_total < 55000,]
+lpop_subset <- RCI[RCI$pop_total > 55000,]
+
+s <- ggplot(spop_subset, aes(x=pop_total, y=cap_index))+geom_point()+ labs(x = "Total population (x < 16000 )",
+    y = "RCI",
+    title = "Problem3.3 - Total population vs Rural Capacity Index")
+m <- ggplot(mpop_subset, aes(pop_total, cap_index))+geom_point()+ labs(x = "Total population (16000 < x < 55000)",
+    y = "RCI")
+l <- ggplot(lpop_subset, aes(pop_total, cap_index))+geom_point()+ labs(x = "Total population (x > 55000)",
+    y = "RCI", caption = "Source: Headwaters Economics Rural Capacity Index Data in New Mexico")
+
+plot_grid(s, m, l, ncol = 1, nrow = 3)
+```
+In the plot Problem 3.3, I see for the first and third subsection of community size, there seems to be a positive linear relationship between total population and capacity index. However, the relationship is vague in the second subsection of community size as points are more spread out.
+Upon faceting, I have some information about per_insured variable for each subsection. I found that community with higher capacity index usually have higher percent of population with health insurance and larger community size.
+
+a. For communities with population < 16000, the average capacity index seems to be around 50-60.
+```{r}
+ggplot(spop_subset) +
+  aes(x = pop_total, y = cap_index) +
+  geom_point(shape = "circle", size = 1.5, colour = "#112446") +
+  facet_wrap(vars(per_insured))+
+  labs(
+    x = "Total population (x < 16000) ",
+    y = "Capacity Index)",
+    title = "Problem3.3a - Capacity Index among insured people ",
+    caption = "Source: Headwaters Economics Rural Capacity Index Data in New Mexico",
+  ) 
+  
+```
+ b. For communities with total population between 16000 and 55000, I found that the approximate range of community's capacity index increases to 80-90, while the range of percent of population with health insurance is nearly unchanged.
+```{r}
+ggplot(mpop_subset) +
+  aes(x = pop_total, y = cap_index) +
+  geom_point(shape = "circle", size = 1.5, colour = "#112446") +
+  facet_wrap(vars(per_insured))+
+  labs(
+    x = "Total population (16000 < x < 55000) ",
+    y = "Capacity Index",
+    title = "Problem3.3b - Capacity Index among insured people ",
+    caption = "Source: Headwaters Economics Rural Capacity Index Data in New Mexico",
+  ) 
+  
+```
+ 
+ c. For communities with total population > 55000, community with higher percent of population with insurance seems to contribute more to a higher capacity index (average in this group seems to be around 85). 
+ 
+```{r}
+ggplot(lpop_subset) +
+  aes(x = pop_total, y = cap_index) +
+  geom_point(shape = "circle", size = 1.5, colour = "#112446") +
+  facet_wrap(vars(per_insured))+
+  labs(
+    x = "Total population (x > 55000) ",
+    y = "Capacity Index",
+    title = "Problem3.3c - Capacity Index among insured people ",
+    caption = "Source: Headwaters Economics Rural Capacity Index Data in New Mexico",
+  ) 
+  
+```
+
+
+
